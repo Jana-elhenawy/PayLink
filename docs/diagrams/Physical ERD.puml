@@ -1,0 +1,93 @@
+
+@startuml
+
+hide circle
+skinparam linetype ortho
+skinparam entity {
+    BackgroundColor White
+    BorderColor Black
+}
+
+entity USER_ACCOUNT {
+    * user_id : INT <<PK>>
+    --
+    full_name : VARCHAR(100)
+    mobile_number : VARCHAR(15) <<UNIQUE>>
+    password_hash : VARCHAR(255)
+    account_type : VARCHAR(20)
+}
+
+entity WALLET {
+    * wallet_id : INT <<PK>>
+    --
+    user_id : INT <<FK, UNIQUE>>
+    created_at : DATETIME
+}
+
+entity BILLER {
+    * biller_id : INT <<PK>>
+    --
+    biller_name : VARCHAR(100)
+    biller_type : VARCHAR(50)
+}
+
+entity SERVICE {
+    * service_id : INT <<PK>>
+    --
+    biller_id : INT <<FK>>
+    service_name : VARCHAR(100)
+    description : VARCHAR(255)
+}
+
+entity PAYMENT {
+    * payment_id : INT <<PK>>
+    --
+    user_id : INT <<FK>>
+    wallet_id : INT <<FK>>
+    service_id : INT <<FK>>
+    amount : DECIMAL(10,2)
+    fee : DECIMAL(10,2)
+    total_amount : DECIMAL(10,2)
+    status : VARCHAR(20)
+    payment_date : DATETIME
+}
+
+entity LEDGER_ENTRY {
+    * entry_id : INT <<PK>>
+    --
+    wallet_id : INT <<FK>>
+    payment_id : INT <<FK, NULL>>
+    amount : DECIMAL(10,2)
+    entry_type : VARCHAR(30)
+    entry_date : DATETIME
+}
+
+entity REFUND {
+    * refund_id : INT <<PK>>
+    --
+    payment_id : INT <<FK, UNIQUE>>
+    amount : DECIMAL(10,2)
+    reason : VARCHAR(255)
+    status : VARCHAR(20)
+    request_date : DATETIME
+}
+
+' Relationships
+
+USER_ACCOUNT ||--|| WALLET : owns
+
+USER_ACCOUNT ||--o{ PAYMENT : makes
+
+WALLET ||--o{ PAYMENT : used_for
+
+BILLER ||--o{ SERVICE : provides
+
+SERVICE ||--o{ PAYMENT : selected_for
+
+WALLET ||--o{ LEDGER_ENTRY : records
+
+PAYMENT ||--o{ LEDGER_ENTRY : creates
+
+PAYMENT ||--o| REFUND : has
+
+@enduml
