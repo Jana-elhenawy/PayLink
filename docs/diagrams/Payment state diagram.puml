@@ -1,0 +1,79 @@
+
+@startuml
+title PayLink - Payment State Machine Diagram
+
+hide empty description
+skinparam shadowing false
+skinparam backgroundColor white
+skinparam state {
+    BackgroundColor #F5F7FA
+    BorderColor #34495E
+    FontColor #172B4D
+    ArrowColor #34495E
+    BorderThickness 1.5
+}
+
+[*] --> Initiated : Payment created
+
+state "Initiated" as Initiated
+state "FundsHeld" as FundsHeld
+state "SentToBiller" as SentToBiller
+state "Completed" as Completed
+state "Failed" as Failed
+state "Unknown" as Unknown
+state "Rejected" as Rejected
+state "Refunded" as Refunded
+
+Initiated --> FundsHeld : T1: Checks pass and sufficient funds\n/ Hold amount + fee
+
+Initiated --> Rejected : T2: Fraud check fails or\ninsufficient funds\n/ Record reason; no money moves
+
+FundsHeld --> SentToBiller : T3: Request sent to biller\n/ Send unique payment reference
+
+SentToBiller --> Completed : T4: Biller confirms\n/ Finalize charge; record fee and commission
+
+SentToBiller --> Failed : T5: Biller refuses\n/ Record reason and biller code
+
+SentToBiller --> Unknown : T6: No answer within timeout\n/ Keep hold; schedule re-queries
+
+Unknown --> Completed : T7: Biller later confirms\n/ Apply T4 effects
+
+Unknown --> Failed : T8: Biller refuses later or\nreconciliation proves non-receipt
+
+Failed --> Refunded : T9: Release held funds\n/ Return total to available
+
+Completed --> [*]
+Rejected --> [*]
+Refunded --> [*]
+
+note right of Unknown
+  Funds remain held.
+  Automatic re-queries:
+  1, 5 and 15 minutes.
+  Maximum three attempts.
+  No automatic refund.
+  No answer keeps payment Unknown.
+end note
+
+note right of Failed
+  Temporary state.
+  T9 follows immediately
+  in the same operation.
+end note
+
+note bottom of Completed
+  Terminal payment state.
+  No outgoing business transitions.
+end note
+
+note bottom of Rejected
+  Terminal payment state.
+  No outgoing business transitions.
+end note
+
+note bottom of Refunded
+  Terminal payment state.
+  No outgoing business transitions.
+end note
+
+@enduml

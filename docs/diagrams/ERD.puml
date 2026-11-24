@@ -1,0 +1,90 @@
+
+@startchen
+
+entity USER {
+    user_id : INTEGER <<key>>
+    full_name : STRING
+    mobile_number : STRING
+    password : STRING
+    account_type : STRING
+}
+
+entity WALLET {
+    wallet_id : INTEGER <<key>>
+    balance : DECIMAL
+    held_balance : DECIMAL
+}
+
+entity PAYMENT {
+    payment_id : INTEGER <<key>>
+    amount : DECIMAL
+    fee : DECIMAL
+    total_amount : DECIMAL
+    status : STRING
+    date : DATETIME
+}
+
+entity BILLER {
+    biller_id : INTEGER <<key>>
+    biller_name : STRING
+    biller_type : STRING
+}
+
+entity SERVICE {
+    service_id : INTEGER <<key>>
+    service_name : STRING
+    description : STRING
+}
+
+entity LEDGER_ENTRY {
+    entry_id : INTEGER <<key>>
+    amount : DECIMAL
+    entry_type : STRING
+    date : DATETIME
+}
+
+entity REFUND {
+    refund_id : INTEGER <<key>>
+    amount : DECIMAL
+    reason : STRING
+    status : STRING
+}
+
+' Relationships
+
+relationship OWNS {
+}
+USER -1- OWNS
+OWNS -1- WALLET
+
+relationship MAKES {
+}
+USER -1- MAKES
+MAKES -N- PAYMENT
+
+relationship USES {
+}
+WALLET -1- USES
+USES -N- PAYMENT
+
+relationship PROVIDES {
+}
+BILLER -1- PROVIDES
+PROVIDES -N- SERVICE
+
+relationship FOR {
+}
+SERVICE -1- FOR
+FOR -N- PAYMENT
+
+relationship RECORDS {
+}
+WALLET -1- RECORDS
+RECORDS -N- LEDGER_ENTRY
+
+relationship HAS {
+}
+PAYMENT -1- HAS
+HAS -(0,1)- REFUND
+
+@endchen
