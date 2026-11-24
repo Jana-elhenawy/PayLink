@@ -1,0 +1,45 @@
+@startuml refund-sequence
+!pragma layout smetana
+title PayLink — Refund a Failed Payment (simplified)
+skinparam shadowing false
+autonumber
+
+participant "Biller Integration /\nReconciliation" as T
+participant "Payment Processing" as PP
+participant "Refund Service" as R
+participant "Wallet + Ledger" as W
+participant "Audit" as A
+participant "Notifications" as N
+actor Customer
+actor "Support Employee" as S
+
+== Failed payment: automatic hold release ==
+T -> PP : biller refused / callback failed / reconciliation: no payment
+PP -> PP : [FAILED]
+PP -> R : releaseFailedPayment(payment)
+alt payment FAILED and not yet released
+  R -> W : release hold
+  W -> W : ledger: HELD -total, AVAILABLE +total
+  W -> A : record(who, when, why)
+  R -> PP : holdReleased
+  PP -> PP : [REFUNDED]
+  PP ->> N : PaymentFailed -> SMS + push
+else already released
+  R --> PP : ignored (no second ledger entry)
+else payment UNKNOWN or other
+  R --> PP : not eligible (Unknown is never refunded automatically)
+end
+
+== Different flow: refund of a COMPLETED payment (FR-27) ==
+note over Customer, S : Payment stays COMPLETED; no new state (D-01)
+Customer -> R : request refund (reason)
+R -> R : eligible? (COMPLETED, no open/approved refund)
+S -> R : approve or decline
+alt approved
+  R -> W : new refund ledger entries
+  W -> A : record
+else declined
+  R -> A : record (no money moves)
+end
+R ->> N : inform customer
+@enduml
