@@ -1,0 +1,105 @@
+@startuml
+!pragma layout smetana
+left to right direction
+skinparam packageStyle rectangle
+
+actor Customer
+actor Agent
+actor Administrator
+actor "Support Employee" as Support
+actor Finance
+actor Biller
+actor "Notification Provider" as Notification
+
+rectangle "PayLink System" {
+
+  package "Account & Wallet Management" {
+    usecase "Register Account" as UC1
+    usecase "Login" as UC2
+    usecase "View Wallet Balance" as UC3
+    usecase "View Transaction History" as UC4
+    usecase "Top Up Wallet" as UC5
+  }
+
+  package "Bill Payment" {
+    usecase "View Biller Catalog" as UC6
+    usecase "Submit Bill Inquiry" as UC7
+    usecase "Calculate Fee and Total" as UC8
+    usecase "Pay a Bill" as UC9
+    usecase "Check Payment Status" as UC10
+    usecase "Receive Payment Receipt" as UC11
+  }
+
+  package "Payment Processing & Security" {
+    usecase "Check Idempotency" as UC12
+    usecase "Execute Fraud Checks" as UC13
+    usecase "Check Payment Limits" as UC14
+    usecase "Hold Wallet Funds" as UC15
+    usecase "Process Biller Response" as UC16
+    usecase "Handle Timeout and Retry" as UC17
+    usecase "Update Payment State" as UC18
+  }
+
+  package "Administration" {
+    usecase "Manage Billers and Services" as UC19
+    usecase "Manage Fees and Limits" as UC20
+    usecase "Upgrade Verification" as UC21
+    usecase "Block / Unblock Account" as UC22
+  }
+
+  package "Support & Reporting" {
+    usecase "Search Payment History" as UC23
+    usecase "Request Refund" as UC24
+    usecase "Approve / Reject Refund" as UC25
+    usecase "View Reconciliation Reports" as UC26
+    usecase "View Daily Totals" as UC27
+  }
+
+  UC9 ..> UC12 : <<include>>
+  UC9 ..> UC13 : <<include>>
+  UC13 ..> UC14 : <<include>>
+  UC9 ..> UC15 : <<include>>
+  UC9 ..> UC16 : <<include>>
+  UC16 ..> UC18 : <<include>>
+  UC9 ..> UC8 : <<include>>
+  UC16 ..> UC11 : <<include>>
+  UC17 ..> UC18 : <<include>>
+}
+
+Customer --> UC1
+Customer --> UC2
+Customer --> UC3
+Customer --> UC4
+Customer --> UC5
+Customer --> UC6
+Customer --> UC7
+Customer --> UC9
+Customer --> UC10
+Customer --> UC24
+
+Agent --> UC2
+Agent --> UC3
+Agent --> UC4
+Agent --> UC5
+Agent --> UC6
+Agent --> UC7
+Agent --> UC9
+
+Administrator --> UC19
+Administrator --> UC20
+Administrator --> UC21
+Administrator --> UC26
+Administrator --> UC27
+
+Support --> UC22
+Support --> UC23
+Support --> UC25
+Support --> UC26
+
+Finance --> UC26
+Finance --> UC27
+
+Biller --> UC16
+Biller --> UC17
+Notification --> UC11
+@enduml

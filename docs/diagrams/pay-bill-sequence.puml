@@ -1,0 +1,96 @@
+@startuml
+!pragma layout smetana
+title PayLink - Pay a Bill Sequence Diagram
+autonumber
+hide footbox
+skinparam shadowing false
+
+actor Customer
+participant "Payment API" as API
+participant "Payment Processing" as PP
+participant "Biller Catalog" as BC
+participant "Fees" as FEE
+participant "Fraud Checks" as FR
+participant "Wallet & Ledger" as W
+participant "Biller Integration" as BI
+actor Biller
+participant "Notifications" as N
+
+Customer -> API: Submit payment request
+API -> PP: Process payment
+
+alt Duplicate idempotency key
+    PP --> API: Return original result
+    API --> Customer: Original result
+else New request
+    PP -> BC: Validate service and inputs
+    BC --> PP: Validation result
+
+    alt Invalid request
+        PP --> API: Reject(INVALID_INPUT)
+        API --> Customer: Rejected
+    else Valid request
+        PP -> PP: Create payment [Initiated]
+        PP -> FEE: Calculate fee and total
+        FEE --> PP: Fee + total
+
+        PP -> FR: Check account, limits and velocity
+
+        alt Fraud check failed
+            PP -> PP: Initiated -> Rejected
+            PP --> API: Rejection reason
+            API --> Customer: Rejected
+        else Checks passed
+            PP -> W: Hold amount + fee
+
+            alt Insufficient balance
+                W --> PP: Insufficient funds
+                PP -> PP: Initiated -> Rejected
+                PP --> API: INSUFFICIENT_FUNDS
+                API --> Customer: Rejected
+            else Hold successful
+                W --> PP: Hold confirmed
+                PP -> PP: Initiated -> FundsHeld
+                PP -> PP: FundsHeld -> SentToBiller
+
+                PP -> BI: Submit payment(reference)
+                BI -> Biller: Process payment
+
+                alt Confirmed
+                    Biller --> BI: Success
+                    BI --> PP: Confirmed
+                    PP -> PP: SentToBiller -> Completed
+                    PP -> W: Capture held amount
+                    PP -> FEE: Record fee income
+                    opt Agent involved
+                        PP -> W: Credit 40% commission
+                    end
+                    PP -> N: Send success notification
+                    N --> Customer: Receipt
+
+                else Refused
+                    Biller --> BI: Refusal + reason
+                    BI --> PP: Failed
+                    PP -> PP: SentToBiller -> Failed
+                    PP -> W: Release held amount
+                    PP -> PP: Failed -> Refunded
+                    PP -> N: Send failure notification
+                    N --> Customer: Failure reason
+
+                else Timeout / Unknown
+                    BI --> PP: No definite response
+                    PP -> PP: SentToBiller -> Unknown
+                    PP --> API: Payment pending
+                    API --> Customer: Being processed
+
+                    note over PP,W
+                        Keep funds held.
+                        Never refund automatically.
+                        Re-query after 1, 5 and 15 minutes.
+                    end note
+                end
+            end
+        end
+    end
+end
+@enduml
