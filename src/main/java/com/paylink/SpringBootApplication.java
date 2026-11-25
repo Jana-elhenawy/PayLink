@@ -1,4 +1,3 @@
 package com.paylink;
 
-public @interface SpringBootApplication {
-}
+public @interface SpringBootApplication {}
