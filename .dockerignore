@@ -1,1 +1,14 @@
 
+.git
+.github
+.idea
+.vscode
+target
+.env
+.env.*
+!.env.example
+*.iml
+*.log
+README.md
+docs
+
