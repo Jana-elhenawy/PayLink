@@ -1,0 +1,262 @@
+@startuml PayLink Domain Class Diagram
+title PayLink - Domain Class Diagram
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+skinparam nodesep 40
+skinparam ranksep 50
+hide empty members
+
+' ===== 1. Accounts and Wallet =====
+enum VerificationLevel {
+  Basic
+  Verified
+}
+abstract class User {
+  - id : UUID
+  - fullName : String
+  - mobile : String
+  - blocked : boolean
+  + login(credential : String) : boolean
+  + block(reason : String) : void
+  + unblock() : void
+}
+class Customer {
+  - level : VerificationLevel
+  + pay(s : BillerService, amount : Money, key : String) : Payment
+  + requestRefund(p : Payment, reason : String) : RefundRequest
+}
+class Agent {
+  - terminalId : String
+  + cashTopUp(c : Customer, amount : Money) : void
+  + payFor(c : Customer, s : BillerService, amount : Money) : Payment
+}
+class Staff {
+  - role : String
+  + upgrade(c : Customer, reason : String) : void
+  + decideRefund(r : RefundRequest, approve : boolean) : void
+}
+class WalletTopUp {
+  - method : String
+  - amount : Money
+  - status : String
+  + approve() : void
+  + decline() : void
+}
+abstract class LedgerAccount {
+  - id : UUID
+  - kind : String
+  + balance() : Money
+}
+class Wallet {
+  + availableBalance() : Money
+  + heldBalance() : Money
+  + hold(amount : Money) : void
+  + release(amount : Money) : void
+  + capture(amount : Money) : void
+  + credit(amount : Money) : void
+}
+class LedgerEntry {
+  - id : UUID
+  - operationId : UUID
+  - type : String
+  - amount : Money
+  - isCredit : boolean
+  - createdAt : DateTime
+}
+class AuditRecord {
+  - operationId : UUID
+  - who : String
+  - why : String
+  - createdAt : DateTime
+}
+class Money {
+  - amount : Decimal
+  - currency : String
+  + add(other : Money) : Money
+  + subtract(other : Money) : Money
+}
+
+' ===== 2. Billers =====
+class Biller {
+  - name : String
+  - active : boolean
+}
+class BillerService {
+  - name : String
+  - requiredFields : List<String>
+  - minAmount : Money
+  - maxAmount : Money
+  + disable() : void
+}
+class BillInquiry {
+  - customerInput : Map
+  - billAmount : Money
+  + calculateTotal(fee : Money) : Money
+}
+interface BillerAdapter <<Adapter>> {
+  + inquire(input : Map) : BillInquiry
+  + pay(p : Payment) : String
+  + queryStatus(ref : String) : String
+}
+class ElectroCoAdapter
+class AquaCoAdapter
+class TopUpNetAdapter
+
+' ===== 3. Payments =====
+enum PaymentState {
+  Initiated
+  FundsHeld
+  SentToBiller
+  Completed
+  Failed
+  Unknown
+  Rejected
+  Refunded
+}
+class Payment {
+  - reference : String
+  - idempotencyKey : String
+  - billAmount : Money
+  - fee : Money
+  - state : PaymentState
+  - reasonCode : String
+  - unknownSince : DateTime
+  + total() : Money
+  + hold() : void
+  + complete() : void
+  + fail(reason : String) : void
+  + markUnknown() : void
+  + refund() : void
+}
+class StateTransition {
+  - fromState : PaymentState
+  - toState : PaymentState
+  - at : DateTime
+}
+class Commission {
+  - amount : Money
+  + calculate(fee : Money) : Money
+}
+enum RefundStatus {
+  Pending
+  Approved
+  Rejected
+}
+class RefundRequest {
+  - status : RefundStatus
+  - reason : String
+  - amount : Money
+  + approve() : void
+  + reject() : void
+}
+
+' ===== 4. Fees =====
+interface FeeStrategy <<Strategy>> {
+  + calculate(amount : Money) : Money
+}
+class FixedFee
+class PercentageFee
+class TieredFee
+class Promotion {
+  - startDate : Date
+  - endDate : Date
+  + isActive() : boolean
+}
+
+' ===== 5. Fraud Checks =====
+abstract class FraudRule <<Chain of Responsibility>> {
+  + setNext(r : FraudRule) : void
+  {abstract} + check(p : Payment) : boolean
+}
+class BlockedAccountRule
+class LimitRule
+class VelocityRule
+
+' ===== 6. Notifications and Reconciliation =====
+enum NotificationStatus {
+  Pending
+  Delivered
+  Undelivered
+}
+class Notification {
+  - channel : String
+  - status : NotificationStatus
+  - attempts : int
+  + send() : boolean
+  + retry() : void
+}
+class ReconciliationReport {
+  - businessDay : Date
+  + reconcile(file : File) : void
+}
+class Discrepancy {
+  - category : String
+}
+
+' ===== Inheritance and realization =====
+User <|-- Customer
+User <|-- Agent
+User <|-- Staff
+LedgerAccount <|-- Wallet
+BillerAdapter <|.. ElectroCoAdapter
+BillerAdapter <|.. AquaCoAdapter
+BillerAdapter <|.. TopUpNetAdapter
+FeeStrategy <|.. FixedFee
+FeeStrategy <|.. PercentageFee
+FeeStrategy <|.. TieredFee
+FraudRule <|-- BlockedAccountRule
+FraudRule <|-- LimitRule
+FraudRule <|-- VelocityRule
+
+' ===== Layout hints (keep rows tidy) =====
+Customer -[hidden]right- Agent
+Agent -[hidden]right- Staff
+Wallet -[hidden]right- Payment
+Payment -[hidden]right- Biller
+
+' ===== Accounts, wallet, ledger, audit, top-up =====
+Customer "1" --> "1" Wallet : owns
+Agent "1" --> "1" Wallet : owns
+LedgerAccount "1" *-- "0..*" LedgerEntry : entries
+LedgerEntry "1..*" --o "1" AuditRecord : covered by
+Customer "1" <-- "0..*" WalletTopUp : for
+Agent "0..1" <-- "0..*" WalletTopUp : taken by
+WalletTopUp "0..*" -right-> "1" Wallet : credits
+WalletTopUp "1" --> "1..*" LedgerEntry : creates
+
+' ===== Payments, refunds, commission =====
+Customer "1" <-- "0..*" Payment : paid by
+Agent "0..1" <-- "0..*" Payment : submitted by
+Payment "0..*" --> "1" BillerService : pays for
+Payment "1" *-- "1..*" StateTransition : state history
+Payment "0..1" <-- "0..*" LedgerEntry : relates to
+Payment "1" --> "0..1" Commission : generates
+Payment "0..1" <-- "0..*" RefundRequest : refunds
+Staff "0..1" <-- "0..*" RefundRequest : decided by
+
+' ===== Billers and fees =====
+Biller "1" *-- "1..*" BillerService : offers
+Biller "1" --> "1" BillerAdapter : integrates via
+Biller "1" <-- "0..*" Promotion : applies to
+BillerService "1" <-- "0..*" BillInquiry : for
+BillerService "0..*" --> "1" FeeStrategy : fee rule
+BillerAdapter ..> BillInquiry : returns
+
+' ===== Fraud, notifications, reconciliation =====
+FraudRule "0..1" --> "0..1" FraudRule : next rule
+Payment <.. FraudRule : checks
+Payment "0..1" <-- "0..*" Notification : about
+Biller "1" <-- "0..*" ReconciliationReport : reconciles
+ReconciliationReport "1" *-- "0..*" Discrepancy : findings
+Discrepancy "0..*" --> "0..1" Payment : concerns
+
+' ===== Typed attributes (enums and Money) =====
+Customer ..> VerificationLevel
+Payment ..> Money
+Payment ..> PaymentState
+StateTransition ..> PaymentState
+RefundRequest ..> RefundStatus
+Notification ..> NotificationStatus
+
+@enduml
